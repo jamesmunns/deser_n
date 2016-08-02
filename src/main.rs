@@ -54,6 +54,34 @@ struct Deserializer {
     state: DeserState,
 }
 
+impl<T> Field<T> {
+
+    // returns true if still working, false if done or error
+    fn minichew(&mut self, b: u8) -> bool {
+        if self.maxsize.is_none() {
+            if b as usize <= self.rawdata.len() {
+                self.maxsize = Some(b);
+                return true;
+            } else {
+                // Notify an error some way?
+                return false;
+            }
+        }
+
+        self.rawdata[self.cursize as usize] = b;
+        self.cursize += 1;
+
+        self.cursize < self.maxsize.unwrap()
+    }
+
+    fn is_complete(&self) -> bool {
+        match self.maxsize {
+            Some(s) => s == self.cursize,
+            None => false,
+        }
+    }
+}
+
 impl Deserializer {
     fn new() -> Deserializer {
         Deserializer {
@@ -80,67 +108,33 @@ impl Deserializer {
     fn chew(&mut self, b: u8) -> bool {
         match self.state {
             DeserState::WorkingA => {
-                if self.field_a.maxsize.is_none() {
-                    if b as usize <= self.field_a.rawdata.len() {
-                        self.field_a.maxsize = Some(b);
-                        return true;
-                    } else {
-                        self.state = DeserState::Error;
-                        return false;
-                    }
-                }
-
-                self.field_a.rawdata[self.field_a.cursize as usize] = b;
-                self.field_a.cursize += 1;
-
-                if self.field_a.cursize == self.field_a.maxsize.unwrap() {
+                if self.field_a.minichew(b) && self.field_a.is_complete() {
                     self.state = DeserState::WorkingB;
+                    true
+                } else {
+                    self.state = DeserState::Error;
+                    false
                 }
-
-                true
             },
             DeserState::WorkingB => {
-                if self.field_b.maxsize.is_none() {
-                    if b as usize <= self.field_b.rawdata.len() {
-                        self.field_b.maxsize = Some(b);
-                        return true;
-                    } else {
-                        self.state = DeserState::Error;
-                        return false;
-                    }
-                }
-
-                self.field_b.rawdata[self.field_b.cursize as usize] = b;
-                self.field_b.cursize += 1;
-
-                if self.field_b.cursize == self.field_b.maxsize.unwrap() {
+                if self.field_b.minichew(b) && self.field_b.is_complete() {
                     self.state = DeserState::WorkingC;
+                    true
+                } else {
+                    self.state = DeserState::Error;
+                    false
                 }
-
-                true
             },
             DeserState::WorkingC => {
-                if self.field_c.maxsize.is_none() {
-                    if b as usize <= self.field_c.rawdata.len() {
-                        self.field_c.maxsize = Some(b);
-                        return true;
-                    } else {
-                        self.state = DeserState::Error;
-                        return false;
-                    }
-                }
-
-                self.field_c.rawdata[self.field_c.cursize as usize] = b;
-                self.field_c.cursize += 1;
-
-                if self.field_c.cursize == self.field_c.maxsize.unwrap() {
+                if self.field_c.minichew(b) && self.field_c.is_complete() {
                     self.state = DeserState::Complete;
-                    return false;
+                    true
+                } else {
+                    self.state = DeserState::Error;
+                    false
                 }
-
-                true
             },
-            _ => true,
+            _ => false,
         }
     }
 }
